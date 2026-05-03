@@ -1,0 +1,37 @@
+# k8s/base/configmap.yaml
+# Non-secret runtime configuration.
+# Secret values (passwords, API keys) are injected via Kubernetes Secrets
+# (see overlays for sealed-secret or external-secrets references).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  labels:
+    project: agentic-erp-copilot
+data:
+  # ─── API ──────────────────────────────────────────────────────────────────
+  APP_ENV: "production"
+  LOG_LEVEL: "INFO"
+  UVICORN_WORKERS: "2"
+  CORS_ORIGINS: "REPLACE_WITH_FRONTEND_URL"
+
+  # ─── LLM ─────────────────────────────────────────────────────────────────
+  # MODEL_BACKEND: "openai_api" | "local_slm"
+  # Swap to local_slm after DPO fine-tuning completes (Section 6.3).
+  MODEL_BACKEND: "openai_api"
+  LLM_MODEL: "gpt-4o"
+  LLM_BASE_URL: "https://models.inference.ai.azure.com"
+  LLM_MAX_TOKENS: "4096"
+  LLM_TEMPERATURE: "0.0"
+  INTENT_CONFIDENCE_THRESHOLD: "0.7"
+
+  # ─── Redis ────────────────────────────────────────────────────────────────
+  CACHE_TTL_SECONDS: "3600"
+  HITL_APPROVAL_TTL_SECONDS: "86400"
+
+  # ─── Observability ───────────────────────────────────────────────────────
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+  LANGCHAIN_TRACING_V2: "true"
+
+  # ─── Solver thresholds ────────────────────────────────────────────────────
+  HITL_COST_THRESHOLD: "10000"   # trigger human approval when cost > $10K

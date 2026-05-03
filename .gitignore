@@ -1,0 +1,31 @@
+# .gitignore
+# Project 2: Agentic-ERP-Deploy
+
+# ─── Secrets and credentials ─────────────────────────────────────────────────
+.env
+*.pem
+*.key
+*.p12
+kubeconfig
+*-kubeconfig
+last-deploy-*.json         # Bicep output (may contain endpoint URLs)
+
+# ─── Azure Developer CLI ──────────────────────────────────────────────────────
+.azure/
+
+# ─── Terraform (if ever used) ─────────────────────────────────────────────────
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# ─── OS / Editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ─── Temporary ────────────────────────────────────────────────────────────────
+*.tmp
+*.log
+/tmp/

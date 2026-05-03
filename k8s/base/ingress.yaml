@@ -1,0 +1,50 @@
+# k8s/base/ingress.yaml
+# NGINX Ingress controller rules.
+# Assumes nginx ingress-controller is installed in the cluster
+# (e.g., via Helm: helm install ingress-nginx ingress-nginx/ingress-nginx).
+#
+# Traffic routing:
+#   /api/*    → api:80
+#   /ws/*     → api:80  (WebSocket chat endpoint)
+#   /*        → frontend:80
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agentic-erp-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"      # support long WebSocket
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - "REPLACE_WITH_FQDN"      # set by overlay (staging / production)
+      secretName: tls-cert-secret
+  rules:
+    - host: "REPLACE_WITH_FQDN"
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  name: http
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  name: http

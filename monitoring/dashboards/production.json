@@ -1,0 +1,150 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "AKS built-in Prometheus data source",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_APPINSIGHTS",
+      "label": "Azure Monitor",
+      "description": "Application Insights data source",
+      "type": "datasource",
+      "pluginId": "grafana-azure-monitor-datasource",
+      "pluginName": "Azure Monitor"
+    }
+  ],
+  "title": "Agentic ERP Copilot — Production",
+  "uid": "agentic-erp-prod",
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["agentic-erp", "production"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "API Request Rate (req/min)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "rate(http_requests_total{job=\"api\"}[5m]) * 60",
+          "legendFormat": "Requests/min"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "API Error Rate (%)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "100 * rate(http_requests_total{job=\"api\",status=~\"5..\"}[5m]) / rate(http_requests_total{job=\"api\"}[5m])",
+          "legendFormat": "Error %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "P95 Request Latency (ms)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_milliseconds_bucket{job=\"api\"}[5m]))",
+          "legendFormat": "p95 latency"
+        },
+        {
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_milliseconds_bucket{job=\"api\"}[5m]))",
+          "legendFormat": "p50 latency"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "LangGraph Node Latency by Intent",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "${DS_APPINSIGHTS}" },
+      "targets": [
+        {
+          "queryType": "Azure Application Insights",
+          "appInsights": {
+            "rawQuery": true,
+            "rawQueryString": "requests | where name startswith 'langgraph.' | summarize avg(duration) by name, bin(timestamp, 1m) | render timechart"
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Intent Distribution (last 1h)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "${DS_APPINSIGHTS}" },
+      "targets": [
+        {
+          "queryType": "Azure Application Insights",
+          "appInsights": {
+            "rawQuery": true,
+            "rawQueryString": "customEvents | where name == 'intent_classified' | summarize count() by tostring(customDimensions.intent) | order by count_ desc"
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Solver Cache Hit Rate (%)",
+      "gridPos": { "h": 4, "w": 6, "x": 8, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "100 * rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))",
+          "legendFormat": "Cache Hit %"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Pending Human Approval Decisions",
+      "gridPos": { "h": 4, "w": 10, "x": 14, "y": 12 },
+      "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "${DS_APPINSIGHTS}" },
+      "targets": [
+        {
+          "queryType": "Azure Application Insights",
+          "appInsights": {
+            "rawQuery": true,
+            "rawQueryString": "customEvents | where name == 'hitl_approval_requested' | where timestamp > ago(24h) | project timestamp, tostring(customDimensions.approval_id), todouble(customDimensions.solver_cost) | order by timestamp desc"
+          }
+        }
+      ]
+    }
+  ]
+}

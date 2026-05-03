@@ -1,0 +1,24 @@
+# azure.yaml
+# Azure Developer CLI (azd) project definition for Agentic-ERP-Deploy.
+# This project deploys pre-built images from ACR to AKS.
+# It does NOT build application code (handled by Project 1).
+#
+# Blueprint Section 1.1.2.
+name: agentic-erp-deploy
+
+metadata:
+  template: Agentic-ERP-Deploy@1.0.0
+
+# Infrastructure defined in Bicep under infra/
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+# No application services to build in this project.
+# Images are consumed from ACR (built by Agentic-ERP-SupplyChain-Copilot CI).
+services: {}
+
+# Pipeline configuration
+pipeline:
+  provider: github

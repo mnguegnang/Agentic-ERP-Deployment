@@ -1,0 +1,92 @@
+# Agentic-ERP-Deploy — Deploy to Azure
+# Triggered automatically by Project 1 CI (repository_dispatch) or manually.
+# The deploy job requires manual approval via GitHub environment: production.
+name: Deploy to Azure
+
+on:
+  repository_dispatch:
+    types: [deploy-from-project1]   # Fired by Project 1's trigger-deploy job
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag from Project 1 CI (commit SHA). For manual deploys/rollbacks."
+        required: true
+        type: string
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Deploy job — gated by GitHub environment: production
+  # ─────────────────────────────────────────────────────────────
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production           # Requires manual approval in GitHub
+    env:
+      # Resolve image tag from either trigger type
+      IMAGE_TAG: ${{ github.event.client_payload.image_tag || inputs.image_tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate image tag
+        run: |
+          if [[ -z "$IMAGE_TAG" ]]; then
+            echo "::error::No image tag provided. Aborting deploy."
+            exit 1
+          fi
+          echo "Deploying image tag: $IMAGE_TAG"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ secrets.RG_NAME }}" \
+            --name "${{ secrets.AKS_NAME }}" \
+            --overwrite-existing
+
+      - name: Set image tags in Kubernetes
+        run: |
+          kubectl set image deployment/api \
+            api="${{ secrets.ACR_NAME }}.azurecr.io/api:${IMAGE_TAG}" \
+            --namespace default
+          kubectl set image deployment/frontend \
+            frontend="${{ secrets.ACR_NAME }}.azurecr.io/frontend:${IMAGE_TAG}" \
+            --namespace default
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/api \
+            --timeout=120s --namespace default
+          kubectl rollout status deployment/frontend \
+            --timeout=120s --namespace default
+
+      - name: Annotate deployment
+        run: |
+          kubectl annotate deployment/api \
+            kubernetes.io/change-cause="CI deploy: image=${IMAGE_TAG}" \
+            --overwrite --namespace default
+          kubectl annotate deployment/frontend \
+            kubernetes.io/change-cause="CI deploy: image=${IMAGE_TAG}" \
+            --overwrite --namespace default
+
+  # ─────────────────────────────────────────────────────────────
+  # Smoke test — runs after deploy
+  # ─────────────────────────────────────────────────────────────
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Run smoke tests
+        env:
+          SMOKE_BASE_URL: ${{ secrets.SMOKE_BASE_URL }}
+        run: bash scripts/smoke-test.sh

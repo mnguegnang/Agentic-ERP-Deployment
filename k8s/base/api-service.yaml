@@ -1,0 +1,19 @@
+# k8s/base/api-service.yaml
+# ClusterIP service for the FastAPI backend.
+# Exposed externally via the Ingress resource.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  labels:
+    app: api
+    project: agentic-erp-copilot
+spec:
+  type: ClusterIP
+  selector:
+    app: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP

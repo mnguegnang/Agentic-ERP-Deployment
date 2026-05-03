@@ -1,0 +1,41 @@
+# k8s/overlays/production/kustomization.yaml
+# Kustomize overlay for the production environment.
+# Full replica counts, production domain, optimised resource limits.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+resources:
+  - ../../base
+
+commonLabels:
+  environment: production
+
+patches:
+  # ─── Production ingress host ──────────────────────────────────────────────
+  - patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: "REPLACE_WITH_YOUR_DOMAIN"
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: "REPLACE_WITH_YOUR_DOMAIN"
+    target:
+      kind: Ingress
+      name: agentic-erp-ingress
+
+  # ─── Production configmap overrides ─────────────────────────────────────
+  - patch: |
+      - op: replace
+        path: /data/APP_ENV
+        value: "production"
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: "WARNING"
+      - op: replace
+        path: /data/CORS_ORIGINS
+        value: "https://REPLACE_WITH_YOUR_DOMAIN"
+    target:
+      kind: ConfigMap
+      name: app-config

@@ -1,0 +1,49 @@
+# k8s/overlays/staging/kustomization.yaml
+# Kustomize overlay for the staging environment.
+# Reduces replicas for cost savings; patches the ingress host.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: staging
+
+resources:
+  - ../../base
+
+namePrefix: staging-
+
+commonLabels:
+  environment: staging
+
+patches:
+  # ─── Scale down for staging ───────────────────────────────────────────────
+  - patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: api
+
+  # ─── Staging ingress host ─────────────────────────────────────────────────
+  - patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: "staging.REPLACE_WITH_YOUR_DOMAIN"
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: "staging.REPLACE_WITH_YOUR_DOMAIN"
+    target:
+      kind: Ingress
+      name: agentic-erp-ingress
+
+  # ─── Staging configmap overrides ─────────────────────────────────────────
+  - patch: |
+      - op: replace
+        path: /data/APP_ENV
+        value: "staging"
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: "DEBUG"
+    target:
+      kind: ConfigMap
+      name: app-config

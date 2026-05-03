@@ -1,0 +1,60 @@
+# Agentic-ERP-Deploy — Provision / Update Azure Infrastructure
+# Manual trigger only. Validates then deploys Bicep modules to the target environment.
+name: Provision Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (staging | production)"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      what_if:
+        description: "Run az deployment what-if preview only (dry run)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Validate Bicep templates
+        run: |
+          az deployment group validate \
+            --resource-group "${{ secrets.RG_NAME }}" \
+            --template-file infra/main.bicep \
+            --parameters "infra/parameters/${{ inputs.environment }}.bicepparam" \
+            --parameters acrName="${{ secrets.ACR_NAME }}"
+
+      - name: What-if preview (dry run)
+        if: ${{ inputs.what_if == true }}
+        run: |
+          az deployment group what-if \
+            --resource-group "${{ secrets.RG_NAME }}" \
+            --template-file infra/main.bicep \
+            --parameters "infra/parameters/${{ inputs.environment }}.bicepparam" \
+            --parameters acrName="${{ secrets.ACR_NAME }}"
+
+      - name: Deploy Bicep templates
+        if: ${{ inputs.what_if == false }}
+        run: |
+          az deployment group create \
+            --resource-group "${{ secrets.RG_NAME }}" \
+            --template-file infra/main.bicep \
+            --parameters "infra/parameters/${{ inputs.environment }}.bicepparam" \
+            --parameters acrName="${{ secrets.ACR_NAME }}" \
+            --mode Incremental \
+            --output json
