@@ -5,11 +5,19 @@ name: Deploy to Azure
 
 on:
   repository_dispatch:
-    types: [deploy-from-project1]   # Fired by Project 1's trigger-deploy job
+    types: [deploy]   # Fired by Project 1's trigger-deploy job
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: "Image tag from Project 1 CI (commit SHA). For manual deploys/rollbacks."
+      api_tag:
+        description: "Full API image tag (e.g. acr.azurecr.io/agentic-erp-api:abc1234)"
+        required: true
+        type: string
+      frontend_tag:
+        description: "Full frontend image tag (e.g. acr.azurecr.io/agentic-erp-frontend:abc1234)"
+        required: true
+        type: string
+      short_sha:
+        description: "Short commit SHA (for annotation)"
         required: true
         type: string
 
@@ -21,19 +29,21 @@ jobs:
     runs-on: ubuntu-latest
     environment: production           # Requires manual approval in GitHub
     env:
-      # Resolve image tag from either trigger type
-      IMAGE_TAG: ${{ github.event.client_payload.image_tag || inputs.image_tag }}
+      API_TAG: ${{ github.event.client_payload.api_tag || inputs.api_tag }}
+      FRONTEND_TAG: ${{ github.event.client_payload.frontend_tag || inputs.frontend_tag }}
+      SHORT_SHA: ${{ github.event.client_payload.short_sha || inputs.short_sha }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate image tag
+      - name: Validate image tags
         run: |
-          if [[ -z "$IMAGE_TAG" ]]; then
-            echo "::error::No image tag provided. Aborting deploy."
+          if [[ -z "$API_TAG" || -z "$FRONTEND_TAG" ]]; then
+            echo "::error::No image tags provided. Aborting deploy."
             exit 1
           fi
-          echo "Deploying image tag: $IMAGE_TAG"
+          echo "Deploying API:      $API_TAG"
+          echo "Deploying Frontend: $FRONTEND_TAG"
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -50,10 +60,10 @@ jobs:
       - name: Set image tags in Kubernetes
         run: |
           kubectl set image deployment/api \
-            api="${{ secrets.ACR_NAME }}.azurecr.io/api:${IMAGE_TAG}" \
+            api="${API_TAG}" \
             --namespace default
           kubectl set image deployment/frontend \
-            frontend="${{ secrets.ACR_NAME }}.azurecr.io/frontend:${IMAGE_TAG}" \
+            frontend="${FRONTEND_TAG}" \
             --namespace default
 
       - name: Wait for rollout
@@ -66,10 +76,10 @@ jobs:
       - name: Annotate deployment
         run: |
           kubectl annotate deployment/api \
-            kubernetes.io/change-cause="CI deploy: image=${IMAGE_TAG}" \
+            kubernetes.io/change-cause="CI deploy: sha=${SHORT_SHA}" \
             --overwrite --namespace default
           kubectl annotate deployment/frontend \
-            kubernetes.io/change-cause="CI deploy: image=${IMAGE_TAG}" \
+            kubernetes.io/change-cause="CI deploy: sha=${SHORT_SHA}" \
             --overwrite --namespace default
 
   # ─────────────────────────────────────────────────────────────
