@@ -62,6 +62,8 @@ jobs:
 
       - name: Set image tags in Kubernetes
         run: |
+          API_TAG=$(echo "${API_TAG}" | tr -d '[:space:]')
+          FRONTEND_TAG=$(echo "${FRONTEND_TAG}" | tr -d '[:space:]')
           kubectl set image deployment/api \
             api="${API_TAG}" \
             --namespace default
