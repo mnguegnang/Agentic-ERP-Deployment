@@ -9,7 +9,7 @@ metadata:
     app: api
     project: agentic-erp-copilot
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: api
@@ -41,10 +41,10 @@ spec:
           resources:
             requests:
               cpu: "250m"
-              memory: "512Mi"
+              memory: "1Gi"
             limits:
               cpu: "1000m"
-              memory: "1Gi"
+              memory: "3Gi"
           livenessProbe:
             httpGet:
               path: /health
@@ -66,10 +66,3 @@ spec:
             runAsUser: 1000
             capabilities:
               drop: ["ALL"]
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
-          labelSelector:
-            matchLabels:
-              app: api
