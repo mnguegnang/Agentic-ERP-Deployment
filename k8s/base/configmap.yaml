@@ -13,7 +13,7 @@ data:
   APP_ENV: "production"
   LOG_LEVEL: "INFO"
   UVICORN_WORKERS: "2"
-  CORS_ORIGINS: "REPLACE_WITH_FRONTEND_URL"
+  CORS_ORIGINS: "http://erp.131-189-252-158.nip.io"
 
   # ─── LLM ─────────────────────────────────────────────────────────────────
   # MODEL_BACKEND: "openai_api" | "local_slm"
