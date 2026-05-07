@@ -57,6 +57,9 @@ jobs:
             --name "${{ secrets.AKS_NAME }}" \
             --overwrite-existing
 
+      - name: Apply Kubernetes base manifests
+        run: kubectl apply -k k8s/base/
+
       - name: Set image tags in Kubernetes
         run: |
           kubectl set image deployment/api \

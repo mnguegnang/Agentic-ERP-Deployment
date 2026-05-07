@@ -24,8 +24,6 @@ spec:
         app: api
         project: agentic-erp-copilot
     spec:
-      # Workload Identity (OIDC) — bind to managed identity for Key Vault access
-      serviceAccountName: api-workload-sa
       containers:
         - name: api
           # Image replaced by CI: kubectl set image deployment/api api=<ACR>/<image>:<tag>
