@@ -16,15 +16,11 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"      # support long WebSocket
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - "REPLACE_WITH_FQDN"      # set by overlay (staging / production)
-      secretName: tls-cert-secret
   rules:
-    - host: "REPLACE_WITH_FQDN"
+    - host: "erp.131-189-252-158.nip.io"
       http:
         paths:
           - path: /api
