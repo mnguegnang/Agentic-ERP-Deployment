@@ -1,0 +1,101 @@
+# k8s/base/neo4j.yaml
+# Neo4j Community 5.26 — supply-chain knowledge graph
+# Password set via NEO4J_AUTH; matches app-secrets NEO4J_PASSWORD=erp_neo4j_prod
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: neo4j-data
+  labels:
+    app: neo4j
+    project: agentic-erp-copilot
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j
+  labels:
+    app: neo4j
+    project: agentic-erp-copilot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+        project: agentic-erp-copilot
+    spec:
+      containers:
+        - name: neo4j
+          image: neo4j:5.26
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/erp_neo4j_prod"
+            - name: NEO4J_server_memory_heap_initial__size
+              value: "256m"
+            - name: NEO4J_server_memory_heap_max__size
+              value: "512m"
+            - name: NEO4J_server_memory_pagecache_size
+              value: "256m"
+            - name: NEO4J_dbms_security_procedures_unrestricted
+              value: "apoc.*"
+          ports:
+            - name: bolt
+              containerPort: 7687
+              protocol: TCP
+            - name: http
+              containerPort: 7474
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "768Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          readinessProbe:
+            tcpSocket:
+              port: 7687
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket:
+              port: 7687
+            initialDelaySeconds: 60
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: neo4j-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j
+  labels:
+    app: neo4j
+    project: agentic-erp-copilot
+spec:
+  type: ClusterIP
+  selector:
+    app: neo4j
+  ports:
+    - name: bolt
+      port: 7687
+      targetPort: 7687
+      protocol: TCP
+    - name: http
+      port: 7474
+      targetPort: 7474
+      protocol: TCP

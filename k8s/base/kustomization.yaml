@@ -8,3 +8,5 @@ resources:
   - frontend-service.yaml
   - configmap.yaml
   - ingress.yaml
+  - neo4j.yaml
+  - neo4j-seed-job.yaml

@@ -1,0 +1,170 @@
+# k8s/base/neo4j-seed-job.yaml
+# Seeds the Neo4j knowledge graph with AdventureWorks supply-chain data.
+# Idempotent (uses MERGE). Re-run safely if pod restarts before seeding.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neo4j-seed
+  labels:
+    project: agentic-erp-copilot
+data:
+  seed.cypher: |
+    CREATE CONSTRAINT supplier_id IF NOT EXISTS FOR (s:Supplier) REQUIRE s.id IS UNIQUE;
+    CREATE CONSTRAINT component_id IF NOT EXISTS FOR (c:Component) REQUIRE c.id IS UNIQUE;
+    CREATE CONSTRAINT product_id IF NOT EXISTS FOR (p:Product) REQUIRE p.id IS UNIQUE;
+    CREATE CONSTRAINT wc_id IF NOT EXISTS FOR (w:WorkCenter) REQUIRE w.id IS UNIQUE;
+    CREATE CONSTRAINT dc_id IF NOT EXISTS FOR (d:DistributionCenter) REQUIRE d.id IS UNIQUE;
+    CREATE CONSTRAINT contract_id IF NOT EXISTS FOR (x:Contract) REQUIRE x.id IS UNIQUE;
+
+    MERGE (s:Supplier {id: 1}) SET s.name='TQ-Electronics GmbH', s.country='DE', s.tier=1, s.reliability=0.97, s.account_number='TQ-ELEC-001';
+    MERGE (s:Supplier {id: 2}) SET s.name='Fabrikam Bearings Inc.', s.country='US', s.tier=1, s.reliability=0.93, s.account_number='FAB-BEAR-002';
+    MERGE (s:Supplier {id: 3}) SET s.name='Lucerne Precision Metals', s.country='CH', s.tier=1, s.reliability=0.98, s.account_number='LUC-MET-003';
+    MERGE (s:Supplier {id: 4}) SET s.name='Contoso Polymer Solutions', s.country='CN', s.tier=1, s.reliability=0.82, s.account_number='CON-PLAS-004';
+    MERGE (s:Supplier {id: 5}) SET s.name='AdventureWorks Direct LLC', s.country='US', s.tier=1, s.reliability=0.99, s.account_number='AWC-DIR-005';
+    MERGE (s:Supplier {id: 6}) SET s.name='TQ-Sub Components GmbH', s.country='DE', s.tier=2, s.reliability=0.91, s.account_number='TQ-SUB-006';
+    MERGE (s:Supplier {id: 7}) SET s.name='Hanover Steel Works GmbH', s.country='DE', s.tier=2, s.reliability=0.89, s.account_number='HAN-STL-007';
+    MERGE (s:Supplier {id: 8}) SET s.name='Shanghai Polymers Ltd.', s.country='CN', s.tier=2, s.reliability=0.78, s.account_number='SHA-POL-008';
+    MERGE (s:Supplier {id: 9}) SET s.name='Pacific Rubber Components', s.country='MY', s.tier=2, s.reliability=0.85, s.account_number='PAC-RUB-009';
+    MERGE (s:Supplier {id: 10}) SET s.name='Nordic Precision AB', s.country='SE', s.tier=2, s.reliability=0.95, s.account_number='NOR-PRE-010';
+    MERGE (s:Supplier {id: 11}) SET s.name='Australian Iron Ore Co.', s.country='AU', s.tier=3, s.reliability=0.87, s.account_number='AUS-IRN-011';
+    MERGE (s:Supplier {id: 12}) SET s.name='Canadian Aluminum Corp.', s.country='CA', s.tier=3, s.reliability=0.90, s.account_number='CAN-ALU-012';
+    MERGE (s:Supplier {id: 13}) SET s.name='Borracha Brasileira SA', s.country='BR', s.tier=3, s.reliability=0.80, s.account_number='BRA-RUB-013';
+    MERGE (s:Supplier {id: 14}) SET s.name='Korea Semiconductor Ltd.', s.country='KR', s.tier=3, s.reliability=0.94, s.account_number='KOR-ELC-014';
+
+    MATCH (child:Supplier {id: 6}), (parent:Supplier {id: 1}) MERGE (child)-[:SUPPLIED_BY {tier_level: 2}]->(parent);
+    MATCH (child:Supplier {id: 7}), (parent:Supplier {id: 3}) MERGE (child)-[:SUPPLIED_BY {tier_level: 2}]->(parent);
+    MATCH (child:Supplier {id: 8}), (parent:Supplier {id: 4}) MERGE (child)-[:SUPPLIED_BY {tier_level: 2}]->(parent);
+    MATCH (child:Supplier {id: 11}), (parent:Supplier {id: 7}) MERGE (child)-[:SUPPLIED_BY {tier_level: 3}]->(parent);
+    MATCH (child:Supplier {id: 12}), (parent:Supplier {id: 3}) MERGE (child)-[:SUPPLIED_BY {tier_level: 3}]->(parent);
+    MATCH (child:Supplier {id: 13}), (parent:Supplier {id: 9}) MERGE (child)-[:SUPPLIED_BY {tier_level: 3}]->(parent);
+    MATCH (child:Supplier {id: 14}), (parent:Supplier {id: 6}) MERGE (child)-[:SUPPLIED_BY {tier_level: 3}]->(parent);
+
+    MERGE (c:Component {id: 101}) SET c.name='Ball Bearing Assembly', c.product_number='CB-001', c.unit_cost=12.50;
+    MERGE (c:Component {id: 102}) SET c.name='Electronic Gear Control Unit', c.product_number='CB-002', c.unit_cost=145.00;
+    MERGE (c:Component {id: 103}) SET c.name='Aluminum Frame Tube Set', c.product_number='CB-003', c.unit_cost=88.00;
+    MERGE (c:Component {id: 104}) SET c.name='Polymer Handlebar Grip Pair', c.product_number='CB-004', c.unit_cost=4.20;
+    MERGE (c:Component {id: 105}) SET c.name='Hydraulic Brake Assembly', c.product_number='CB-005', c.unit_cost=55.00;
+    MERGE (c:Component {id: 106}) SET c.name='E-Drive Motor Module 250W', c.product_number='CB-006', c.unit_cost=210.00;
+    MERGE (c:Component {id: 107}) SET c.name='Precision Steel Chainring 44T', c.product_number='CB-007', c.unit_cost=28.00;
+    MERGE (c:Component {id: 108}) SET c.name='All-Terrain Rubber Tire 29in', c.product_number='CB-008', c.unit_cost=22.00;
+    MERGE (c:Component {id: 109}) SET c.name='Carbon Fiber Fork', c.product_number='CB-009', c.unit_cost=175.00;
+
+    MERGE (p:Product {id: 201}) SET p.name='Mountain Bike Pro 2026', p.product_number='FG-MTB-2026', p.list_price=1299.00;
+    MERGE (p:Product {id: 202}) SET p.name='Road Bike Elite 2026', p.product_number='FG-RD-2026', p.list_price=1199.00;
+    MERGE (p:Product {id: 203}) SET p.name='City Bike Standard 2026', p.product_number='FG-CT-2026', p.list_price=649.00;
+    MERGE (p:Product {id: 204}) SET p.name='E-Bike Ultra 2026', p.product_number='FG-EB-2026', p.list_price=2499.00;
+
+    MERGE (w:WorkCenter {id: 1}) SET w.name='Frame Assembly Bay', w.capacity_hours=8.0;
+    MERGE (w:WorkCenter {id: 2}) SET w.name='Electronics Bay', w.capacity_hours=8.0;
+    MERGE (w:WorkCenter {id: 3}) SET w.name='Final Assembly', w.capacity_hours=8.0;
+
+    MERGE (d:DistributionCenter {id: 301}) SET d.name='North America DC', d.region='North America', d.country='US';
+    MERGE (d:DistributionCenter {id: 302}) SET d.name='Europe DC', d.region='Europe', d.country='DE';
+    MERGE (d:DistributionCenter {id: 303}) SET d.name='Asia Pacific DC', d.region='Asia Pacific', d.country='SG';
+
+    MERGE (x:Contract {id: 401}) SET x.effective_date='2025-01-01', x.expiry_date='2026-12-31', x.supplier_id=1;
+    MERGE (x:Contract {id: 402}) SET x.effective_date='2025-01-01', x.expiry_date='2026-12-31', x.supplier_id=2;
+    MERGE (x:Contract {id: 403}) SET x.effective_date='2025-06-01', x.expiry_date='2027-05-31', x.supplier_id=3;
+    MERGE (x:Contract {id: 404}) SET x.effective_date='2025-03-01', x.expiry_date='2026-02-28', x.supplier_id=4;
+    MERGE (x:Contract {id: 405}) SET x.effective_date='2025-01-01', x.expiry_date='2027-12-31', x.supplier_id=5;
+
+    MATCH (s:Supplier {id: 2}), (c:Component {id: 101}) MERGE (s)-[:PROVIDES {cost: 12.50, capacity: 10000}]->(c);
+    MATCH (s:Supplier {id: 1}), (c:Component {id: 102}) MERGE (s)-[:PROVIDES {cost: 145.00, capacity: 5000}]->(c);
+    MATCH (s:Supplier {id: 3}), (c:Component {id: 103}) MERGE (s)-[:PROVIDES {cost: 88.00, capacity: 8000}]->(c);
+    MATCH (s:Supplier {id: 4}), (c:Component {id: 104}) MERGE (s)-[:PROVIDES {cost: 4.20, capacity: 20000}]->(c);
+    MATCH (s:Supplier {id: 5}), (c:Component {id: 105}) MERGE (s)-[:PROVIDES {cost: 55.00, capacity: 6000}]->(c);
+    MATCH (s:Supplier {id: 1}), (c:Component {id: 106}) MERGE (s)-[:PROVIDES {cost: 210.00, capacity: 3000}]->(c);
+    MATCH (s:Supplier {id: 3}), (c:Component {id: 107}) MERGE (s)-[:PROVIDES {cost: 28.00, capacity: 10000}]->(c);
+    MATCH (s:Supplier {id: 4}), (c:Component {id: 108}) MERGE (s)-[:PROVIDES {cost: 22.00, capacity: 15000}]->(c);
+    MATCH (s:Supplier {id: 5}), (c:Component {id: 109}) MERGE (s)-[:PROVIDES {cost: 175.00, capacity: 4000}]->(c);
+
+    MATCH (c:Component {id: 101}), (p:Product {id: 201}) MERGE (c)-[:USED_IN {quantity: 2.0}]->(p);
+    MATCH (c:Component {id: 103}), (p:Product {id: 201}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 105}), (p:Product {id: 201}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 107}), (p:Product {id: 201}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 108}), (p:Product {id: 201}) MERGE (c)-[:USED_IN {quantity: 2.0}]->(p);
+    MATCH (c:Component {id: 109}), (p:Product {id: 201}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 101}), (p:Product {id: 202}) MERGE (c)-[:USED_IN {quantity: 2.0}]->(p);
+    MATCH (c:Component {id: 103}), (p:Product {id: 202}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 105}), (p:Product {id: 202}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 107}), (p:Product {id: 202}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 108}), (p:Product {id: 202}) MERGE (c)-[:USED_IN {quantity: 2.0}]->(p);
+    MATCH (c:Component {id: 109}), (p:Product {id: 202}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 101}), (p:Product {id: 203}) MERGE (c)-[:USED_IN {quantity: 2.0}]->(p);
+    MATCH (c:Component {id: 103}), (p:Product {id: 203}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 105}), (p:Product {id: 203}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 104}), (p:Product {id: 203}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 108}), (p:Product {id: 203}) MERGE (c)-[:USED_IN {quantity: 2.0}]->(p);
+    MATCH (c:Component {id: 101}), (p:Product {id: 204}) MERGE (c)-[:USED_IN {quantity: 2.0}]->(p);
+    MATCH (c:Component {id: 103}), (p:Product {id: 204}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 105}), (p:Product {id: 204}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 106}), (p:Product {id: 204}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+    MATCH (c:Component {id: 102}), (p:Product {id: 204}) MERGE (c)-[:USED_IN {quantity: 1.0}]->(p);
+
+    MATCH (c:Component {id: 101}), (w:WorkCenter {id: 1}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+    MATCH (c:Component {id: 102}), (w:WorkCenter {id: 2}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+    MATCH (c:Component {id: 103}), (w:WorkCenter {id: 1}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+    MATCH (c:Component {id: 104}), (w:WorkCenter {id: 3}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+    MATCH (c:Component {id: 105}), (w:WorkCenter {id: 3}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+    MATCH (c:Component {id: 106}), (w:WorkCenter {id: 2}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+    MATCH (c:Component {id: 107}), (w:WorkCenter {id: 1}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+    MATCH (c:Component {id: 108}), (w:WorkCenter {id: 3}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+    MATCH (c:Component {id: 109}), (w:WorkCenter {id: 1}) MERGE (c)-[:PROCESSED_AT {duration_hours: 0.5}]->(w);
+
+    MATCH (p:Product {id: 201}), (d:DistributionCenter {id: 301}) MERGE (p)-[:SHIPS_TO {cost: 0.20, transit_days: 3}]->(d);
+    MATCH (p:Product {id: 201}), (d:DistributionCenter {id: 302}) MERGE (p)-[:SHIPS_TO {cost: 0.55, transit_days: 7}]->(d);
+    MATCH (p:Product {id: 201}), (d:DistributionCenter {id: 303}) MERGE (p)-[:SHIPS_TO {cost: 0.80, transit_days: 14}]->(d);
+    MATCH (p:Product {id: 202}), (d:DistributionCenter {id: 301}) MERGE (p)-[:SHIPS_TO {cost: 0.20, transit_days: 3}]->(d);
+    MATCH (p:Product {id: 202}), (d:DistributionCenter {id: 302}) MERGE (p)-[:SHIPS_TO {cost: 0.55, transit_days: 7}]->(d);
+    MATCH (p:Product {id: 202}), (d:DistributionCenter {id: 303}) MERGE (p)-[:SHIPS_TO {cost: 0.80, transit_days: 14}]->(d);
+    MATCH (p:Product {id: 203}), (d:DistributionCenter {id: 301}) MERGE (p)-[:SHIPS_TO {cost: 0.20, transit_days: 3}]->(d);
+    MATCH (p:Product {id: 203}), (d:DistributionCenter {id: 302}) MERGE (p)-[:SHIPS_TO {cost: 0.55, transit_days: 7}]->(d);
+    MATCH (p:Product {id: 203}), (d:DistributionCenter {id: 303}) MERGE (p)-[:SHIPS_TO {cost: 0.80, transit_days: 14}]->(d);
+    MATCH (p:Product {id: 204}), (d:DistributionCenter {id: 301}) MERGE (p)-[:SHIPS_TO {cost: 0.20, transit_days: 3}]->(d);
+    MATCH (p:Product {id: 204}), (d:DistributionCenter {id: 302}) MERGE (p)-[:SHIPS_TO {cost: 0.55, transit_days: 7}]->(d);
+    MATCH (p:Product {id: 204}), (d:DistributionCenter {id: 303}) MERGE (p)-[:SHIPS_TO {cost: 0.80, transit_days: 14}]->(d);
+
+    MATCH (s:Supplier {id: 1}), (x:Contract {id: 401}) MERGE (s)-[:BOUND_BY]->(x);
+    MATCH (s:Supplier {id: 2}), (x:Contract {id: 402}) MERGE (s)-[:BOUND_BY]->(x);
+    MATCH (s:Supplier {id: 3}), (x:Contract {id: 403}) MERGE (s)-[:BOUND_BY]->(x);
+    MATCH (s:Supplier {id: 4}), (x:Contract {id: 404}) MERGE (s)-[:BOUND_BY]->(x);
+    MATCH (s:Supplier {id: 5}), (x:Contract {id: 405}) MERGE (s)-[:BOUND_BY]->(x);
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: neo4j-seed
+  labels:
+    project: agentic-erp-copilot
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: neo4j:5.26
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Neo4j to be ready..."
+              until cypher-shell -a neo4j://neo4j:7687 -u neo4j -p erp_neo4j_prod "RETURN 1" 2>/dev/null; do
+                sleep 5
+              done
+              echo "Neo4j is ready. Running seed..."
+              cypher-shell -a neo4j://neo4j:7687 -u neo4j -p erp_neo4j_prod --file /seed/seed.cypher
+              echo "Seed complete."
+          volumeMounts:
+            - name: seed-data
+              mountPath: /seed
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+      volumes:
+        - name: seed-data
+          configMap:
+            name: neo4j-seed
