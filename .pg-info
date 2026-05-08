@@ -1,0 +1,4 @@
+PG_NAME=pg-agentic-erp44b6a901
+PG_HOST=pg-agentic-erp44b6a901.postgres.database.azure.com
+PG_ADMIN=pgadmin
+PG_LOCATION=francecentral

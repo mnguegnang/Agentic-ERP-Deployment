@@ -1,10 +1,10 @@
-# Agentic-ERP-Deploy — README
+# Agentic-ERP-Deploy
 
-> **Project 2 of 2** | Stage 7 — Production Deployment  
-> Companion to: [`Agentic-ERP-SupplyChain-Copilot`](https://github.com/YOUR_ORG/Agentic-ERP-SupplyChain-Copilot) (Project 1)  
-> Blueprint: `Agentic_Decision_Intelligence_Implementation_Blueprint.md` — Stage 7
+> **Project 2 of 2** — Infrastructure, Kubernetes Manifests, and Deployment Workflows  
+> Companion application repo: [`Agentic-ERP-SupplyChain-Copilot`](https://github.com/Gabin-Maxime/Agentic-ERP-SupplyChain-Copilot) (Project 1)  
+> Live at: `http://erp.131-189-252-158.nip.io`
 
-This repository owns all infrastructure-as-code, deployment workflows, Kubernetes manifests, and production monitoring for the Agentic ERP Supply Chain Copilot system. It **never builds application code** — it consumes container images built and pushed to Azure Container Registry by Project 1's CI pipeline.
+This repository owns all infrastructure-as-code, Kubernetes manifests, deployment workflows, and production monitoring for the Agentic ERP Supply Chain Copilot. It **never builds application code** — it consumes container images built and pushed to Azure Container Registry (ACR) by Project 1's CI pipeline.
 
 ---
 
@@ -12,15 +12,15 @@ This repository owns all infrastructure-as-code, deployment workflows, Kubernete
 
 ### Gate: Dev-Complete (M8)
 
-**Do not start Project 2 until Project 1's M8 gate has passed.** This requires:
+Do not start Project 2 until Project 1's M8 gate has passed:
 
-- All 7 solver unit tests green  
-- Full agent eval: intent accuracy ≥ 90%, tool precision ≥ 95%  
-- Red-team: 0% injection success  
-- Docker Compose boots all 5 services  
+- All 7 solver unit tests green
+- Full agent eval: intent accuracy ≥ 90%, tool precision ≥ 95%
+- Red-team: 0% injection success
+- Docker Compose boots all 5 services
 - Video demo recorded
 
-### Tools required
+### Required Tools
 
 | Tool | Version | Install |
 |------|---------|---------|
@@ -38,10 +38,10 @@ This repository owns all infrastructure-as-code, deployment workflows, Kubernete
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/YOUR_ORG/Agentic-ERP-Deploy.git
+git clone https://github.com/Gabin-Maxime/Agentic-ERP-Deploy.git
 cd Agentic-ERP-Deploy
 cp .env.example .env
-# Edit .env with your Azure credentials and resource names
+# Edit .env: AZURE credentials, ACR_NAME, RG_NAME, AKS_NAME
 ```
 
 ### 2. Create the Azure resource group
@@ -56,13 +56,13 @@ az group create --name "$RG_NAME" --location eastus
 
 ```bash
 ./scripts/provision.sh production
-# Runs az deployment group create with Bicep templates
-# Prompts for what-if preview before applying
-# Automatically fetches AKS credentials on success
+# Runs az deployment group create with Bicep templates.
+# Shows a what-if diff and prompts for confirmation before applying.
+# Automatically fetches AKS credentials on success.
 ```
 
 Estimated provisioning time: ~8 minutes.  
-Estimated monthly cost: ~$116 (within $170 budget — see blueprint Section 7.4).
+Estimated monthly cost: ~$116 (within $170 budget).
 
 ### 4. Install NGINX Ingress Controller
 
@@ -70,73 +70,119 @@ Estimated monthly cost: ~$116 (within $170 budget — see blueprint Section 7.4)
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
 helm install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx --create-namespace \
-  --set controller.service.loadBalancerIP=""
+  --namespace ingress-nginx --create-namespace
 ```
 
-### 5. Apply TLS certificate (cert-manager recommended)
+Get the external IP assigned to the ingress LoadBalancer:
 
 ```bash
-helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager --create-namespace \
-  --set installCRDs=true
-# Then create a ClusterIssuer for Let's Encrypt and patch ingress.yaml
+kubectl get svc -n ingress-nginx ingress-nginx-controller \
+  --output jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 
-### 6. Deploy the application
+### 5. Create the `app-secrets` Kubernetes Secret
 
-Deployment is normally triggered automatically by Project 1's CI (`trigger-deploy` job). For manual deploy:
+Before applying manifests, create the secret that all pods depend on:
 
 ```bash
-# Via GitHub Actions workflow_dispatch:
+kubectl create secret generic app-secrets \
+  --from-literal=DATABASE_URL="postgresql+asyncpg://erp:<pass>@<pg-host>:5432/erp" \
+  --from-literal=NEO4J_URI="bolt://neo4j:7687" \
+  --from-literal=NEO4J_USER="neo4j" \
+  --from-literal=NEO4J_PASSWORD="erp_neo4j_prod" \
+  --from-literal=REDIS_URL="redis://redis:6379/0" \
+  --from-literal=GITHUB_TOKEN="<pat>" \
+  --from-literal=JWT_SECRET_KEY="<secret>"
+```
+
+### 6. Apply Kubernetes manifests
+
+```bash
+kubectl apply -k k8s/base/
+```
+
+> **Note:** `kubectl apply -k` resets image references to `ACR_PLACEHOLDER`. Always follow with `kubectl set image` (Step 7).
+
+### 7. Deploy the application
+
+Deployment is normally triggered automatically by Project 1's CI (`trigger-deploy` job dispatches to this repo). For a manual deploy:
+
+```bash
+# Via GitHub Actions workflow_dispatch (preferred):
 gh workflow run deploy.yml -f image_tag=<COMMIT_SHA>
 
-# Or directly with kubectl (emergency use only):
-kubectl set image deployment/api api=<ACR>.azurecr.io/api:<TAG> --namespace default
-kubectl set image deployment/frontend frontend=<ACR>.azurecr.io/frontend:<TAG> --namespace default
+# Emergency direct kubectl:
+kubectl set image deployment/api \
+  api=<ACR_NAME>.azurecr.io/agentic-erp-api:<TAG>
+kubectl set image deployment/frontend \
+  frontend=<ACR_NAME>.azurecr.io/agentic-erp-frontend:<TAG>
 kubectl rollout status deployment/api --timeout=120s
 kubectl rollout status deployment/frontend --timeout=120s
 ```
 
-### 7. Run smoke tests
+### 8. Run smoke tests
 
 ```bash
-SMOKE_BASE_URL=https://your-domain ./scripts/smoke-test.sh
+SMOKE_BASE_URL=http://erp.131-189-252-158.nip.io ./scripts/smoke-test.sh
 ```
 
 All 6 tests must pass before marking a deployment production-ready.
 
 ---
 
-## Architecture
+## CI/CD Architecture
 
 ```
-Project 1 CI (auto)                  Project 2 Deploy (triggered)
-───────────────────                  ─────────────────────────────
-push to main
-  ├─ lint + test
-  ├─ red-team
-  ├─ build + push images → ACR
-  └─ trigger-deploy ─────────────→   repository_dispatch event
-       (GitHub API)                       │
-                                          ├─ deploy job
-                                          │   └─ environment: production
-                                          │      (manual approval gate)
-                                          └─ smoke-test job
+Project 1 CI (push to master)         Project 2 Deploy (triggered)
+──────────────────────────────         ────────────────────────────
+backend-quality
+frontend-quality
+integration-tests
+red-team
+build-and-push-images
+  ├── docker build + push → ACR
+  └── trigger-deploy ─────────────►  repository_dispatch: "deploy"
+                                           │
+                                    deploy.yml
+                                           ├── environment: production
+                                           │   (manual approval gate)
+                                           ├── kubectl apply -k k8s/base/
+                                           ├── kubectl set image (api + frontend)
+                                           └── smoke-test job (6 checks)
 ```
 
-### Azure Resources
+Image tags carry the short Git SHA from Project 1 (e.g., `ff046e2`). The deploy workflow trims whitespace from downloaded tags before passing them to `kubectl set image` to prevent `InvalidImageName` errors.
+
+---
+
+## Azure Resources
 
 | Resource | SKU | Purpose | Est. Cost |
 |----------|-----|---------|-----------|
 | AKS cluster | Standard_B2s × 2 | Container orchestration | ~$60/mo |
 | PostgreSQL Flexible | B1ms | ERP data + pgvector | ~$25/mo |
-| Cosmos DB (Gremlin) | Free tier | Production KG | $0 |
-| Azure AI Search | Free tier | Full-text search | $0 |
 | Container Registry | Basic | Image storage | ~$5/mo |
-| Redis Cache | Basic C0 | Semantic cache + HiTL | ~$16/mo |
-| Monitoring | PerGB2018 LAW | Traces, metrics, alerts | ~$10/mo |
+| Redis Cache | Basic C0 | Semantic cache + HiTL decisions | ~$16/mo |
+| App Insights + Log Analytics | PerGB2018 | Traces, metrics, alerts | ~$10/mo |
 | **Total** | | | **~$116/mo** |
+
+> **Note:** Cosmos DB Gremlin API (blueprint target for production KG) was unavailable in East US at deployment time. Neo4j 5.26 runs as an in-cluster Deployment (`k8s/base/neo4j.yaml`) with a 5 Gi PVC. See DEV-04 in `Project_Notes.md`.
+
+---
+
+## Kubernetes Manifests (`k8s/base/`)
+
+| File | Purpose |
+|------|---------|
+| `api-deployment.yaml` | API pod (1 replica — see DEV-03); image: `ACR_PLACEHOLDER` |
+| `api-service.yaml` | ClusterIP service, port 80 → container 8000 |
+| `frontend-deployment.yaml` | Frontend pod (nginx:alpine); image: `ACR_PLACEHOLDER` |
+| `frontend-service.yaml` | ClusterIP service, port 80 → container 80 |
+| `configmap.yaml` | Non-secret runtime config (CORS origins, LLM model, thresholds) |
+| `ingress.yaml` | NGINX Ingress: `/api/*` + `/ws/*` + `/docs` + `/health` → api; `/*` → frontend |
+| `neo4j.yaml` | Neo4j 5.26 in-cluster: PVC (5 Gi), Deployment (768 Mi request / 1 Gi limit), ClusterIP |
+| `neo4j-seed-job.yaml` | One-shot Job: seeds 14 suppliers, 9 components, 4 products, 3 DCs via cypher-shell |
+| `kustomization.yaml` | Kustomize resource list for `kubectl apply -k` |
 
 ---
 
@@ -147,9 +193,9 @@ A release to production requires **all** of:
 - [ ] Project 1 CI pipeline green (lint + unit + integration + red-team)
 - [ ] Docker images built and pushed to ACR
 - [ ] `az deployment group validate` passes (Bicep templates)
-- [ ] Smoke test passes on staging (6 representative queries)
+- [ ] Manual approval via GitHub environment protection rule (`production`)
+- [ ] Smoke test passes (6 representative checks)
 - [ ] No P0/P1 issues in the last 24 hours
-- [ ] Manual approval via GitHub environment protection rule
 
 ---
 
@@ -157,19 +203,19 @@ A release to production requires **all** of:
 
 | Scenario | Command |
 |----------|---------|
-| Bad deploy (error spike) | `kubectl rollout undo deployment/api` |
+| Bad API deploy | `kubectl rollout undo deployment/api` |
 | Bad frontend deploy | `kubectl rollout undo deployment/frontend` |
-| Revert to specific image | `kubectl set image deployment/api api=<ACR>/<image>:<old-tag>` |
-| SLM regression (no redeploy) | Set `MODEL_BACKEND=openai_api` in ConfigMap, restart pods |
+| Revert to specific image | `kubectl set image deployment/api api=<ACR>/agentic-erp-api:<old-sha>` |
+| LLM regression (no redeploy) | Update `LLM_MODEL` in ConfigMap, restart pods |
 | Database corruption | Azure Portal → PostgreSQL → Point-in-time restore (7-day retention) |
 
 ---
 
 ## Monitoring
 
-- **Grafana dashboard**: `monitoring/dashboards/production.json` — import into Grafana
-- **Alerts**: P95 latency > 10s, error rate > 5%, pod restarts > 3
-- **OpenTelemetry**: traces forwarded to App Insights via `monitoring/otel-collector.yaml`
+- **Grafana dashboard**: `monitoring/dashboards/production.json` — import into a Grafana instance
+- **Alerts**: P95 latency > 10 s, error rate > 5%, pod restarts > 3
+- **OpenTelemetry**: traces forwarded to App Insights via `monitoring/otel-collector.yaml` DaemonSet
 - **LangSmith**: agent trajectories, token usage, per-node latency
 
 ---
@@ -179,42 +225,57 @@ A release to production requires **all** of:
 ```
 Agentic-ERP-Deploy/
 ├── .github/workflows/
-│   ├── deploy.yml          # Deploy to AKS (repository_dispatch or manual)
-│   └── infra.yml           # Provision/update Azure infra (manual)
+│   ├── deploy.yml          # Deploy to AKS (repository_dispatch or workflow_dispatch)
+│   └── infra.yml           # Provision/update Azure infra (manual, what-if mode)
 ├── infra/
 │   ├── main.bicep          # Root Bicep orchestrator
 │   ├── modules/
-│   │   ├── aks.bicep       # AKS cluster (B2s × 2)
+│   │   ├── aks.bicep       # AKS cluster (Standard_B2s × 2)
 │   │   ├── postgres.bicep  # PostgreSQL Flexible (B1ms)
-│   │   ├── cosmosdb.bicep  # Cosmos DB Gremlin (free)
+│   │   ├── cosmosdb.bicep  # Cosmos DB Gremlin (provisioned but unused — see DEV-04)
 │   │   ├── redis.bicep     # Redis Cache Basic C0
-│   │   ├── acr.bicep       # Container Registry Basic
+│   │   ├── acr.bicep       # Attaches AKS role to existing ACR (does not create)
 │   │   ├── monitoring.bicep# App Insights + Log Analytics
-│   │   └── search.bicep    # Azure AI Search (free)
+│   │   └── search.bicep    # Azure AI Search (free tier)
 │   └── parameters/
 │       ├── dev.bicepparam
 │       └── prod.bicepparam
 ├── k8s/
-│   ├── base/               # Base Kubernetes manifests
+│   ├── base/               # Base Kubernetes manifests (applied with kubectl apply -k)
 │   └── overlays/           # Kustomize overlays (staging / production)
 ├── monitoring/
 │   ├── alerts.bicep        # Azure Monitor alert rules
 │   ├── dashboards/         # Grafana dashboard JSON
-│   └── otel-collector.yaml # OTel Collector DaemonSet
+│   └── otel-collector.yaml # OTel Collector DaemonSet → App Insights
 ├── scripts/
-│   ├── provision.sh        # azd up wrapper with what-if preview
+│   ├── provision.sh        # Bicep deployment with what-if preview
 │   └── smoke-test.sh       # Post-deploy validation (6 tests)
 ├── azure.yaml              # azd project definition
-├── .env.example            # Required environment variables
-├── .gitignore
-├── README.md               # This file
-├── Developer_Log.md        # Chronological error/fix tracker
-└── Project_Notes.md        # Architectural decisions and deviations
+├── .env.example            # All required environment variables with descriptions
+├── Developer_Log.md        # Chronological error/fix tracker — append all incidents here
+└── Project_Notes.md        # Architectural decisions and deviations from the blueprint
 ```
+
+---
+
+## Known Deviations from Blueprint
+
+| ID | Area | Actual vs. Blueprint |
+|----|------|---------------------|
+| DEV-01 | Domain | `erp.131-189-252-158.nip.io` (nip.io wildcard DNS), HTTP only — no custom domain or TLS |
+| DEV-02 | Pod identity | No Workload Identity; credentials supplied via `app-secrets` env vars |
+| DEV-03 | API replicas | 1 replica (OOMKill on 2× Standard_B2s with torch loaded) |
+| DEV-04 | Knowledge graph | Neo4j 5.26 in-cluster instead of Cosmos DB Gremlin (region capacity failure) |
+| DEV-05 | WebSocket headers | `configuration-snippet` removed; `proxy-http-version: "1.1"` is sufficient |
+| DEV-06 | Frontend env vars | `VITE_WS_BASE_URL` and `VITE_API_BASE_URL` baked in at Docker build time |
+| DEV-07 | Kustomize base | `kustomization.yaml` added (was missing from initial scaffold) |
+
+Full details with rationale and remediation debt in [`Project_Notes.md`](Project_Notes.md).
 
 ---
 
 ## Related
 
-- [Project 1: Agentic-ERP-SupplyChain-Copilot](https://github.com/YOUR_ORG/Agentic-ERP-SupplyChain-Copilot) — application code, CI, Docker Compose
-- Blueprint: `Agentic_Decision_Intelligence_Implementation_Blueprint.md`
+- [Project 1: Agentic-ERP-SupplyChain-Copilot](https://github.com/Gabin-Maxime/Agentic-ERP-SupplyChain-Copilot) — application code, CI, Docker Compose
+- [Developer Log](Developer_Log.md) — chronological error/fix tracker
+- [Project Notes](Project_Notes.md) — architectural decisions and deviations
