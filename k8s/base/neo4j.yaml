@@ -46,6 +46,8 @@ spec:
               value: "256m"
             - name: NEO4J_dbms_security_procedures_unrestricted
               value: "apoc.*"
+            - name: NEO4J_server_config_strict__validation_enabled
+              value: "false"
           ports:
             - name: bolt
               containerPort: 7687
